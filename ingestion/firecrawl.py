@@ -10,6 +10,12 @@ from firecrawl import Firecrawl
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Vector store & embedding imports
+from langchain_postgres.vectorstores import PGVector
+from langchain_core.embeddings import Embeddings
+from langchain_openai import OpenAIEmbeddings
+
+
 
 class SourceDefinition(BaseModel):
     """
@@ -134,5 +140,53 @@ def chunk_document(
     )
     return splitter.split_documents([document])
 
+
+
 # TOPIC 9: VECTOR DATABASE & PROVENANCE STORAGE LOGIC (pgvector)
+
+def get_vector_store(
+    embedding_model: Optional[Embeddings] = None,
+    collection_name: str = "source_documents"
+) -> PGVector:
+    """
+    Initializes and returns a PGVector store instance.
+    
+    Why: Connects to PostgreSQL using the DATABASE_URL environment variable
+    and sets up the target collection for vector embeddings.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError("CRITICAL: DATABASE_URL environment variable is missing.")
+    
+    if embedding_model is None:
+        # Defaults to OpenAI text-embedding-3-small unless specified otherwise
+        embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
+        
+    return PGVector(
+        embeddings=embedding_model,
+        collection_name=collection_name,
+        connection=db_url,
+        use_jsonb=True,
+    )
+
+
+def index_chunks_to_pgvector(
+    chunks: List[Document],
+    collection_name: str = "source_documents"
+) -> List[str]:
+    """
+    Indexes document chunks into PostgreSQL pgvector store.
+    
+    Args:
+        chunks: List of split LangChain Document chunks.
+        collection_name: Target vector store collection name.
+        
+    Returns:
+        List of generated vector IDs.
+    """
+    vector_store = get_vector_store(collection_name=collection_name)
+    inserted_ids = vector_store.add_documents(documents=chunks)
+    return inserted_ids
+
+
 
