@@ -24,7 +24,7 @@ _DB_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://langchain:langchain@lo
 _EMBEDDINGS = DeterministicFakeEmbedding(size=1536)
 _GLOBAL_VECTOR_STORE = PGVector(
     embeddings=_EMBEDDINGS,
-    collection_name="zimsignal_week3_gate",
+    collection_name="zimsignal_knowledge_base",
     connection=_DB_URL,
     use_jsonb=True
 )
