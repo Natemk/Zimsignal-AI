@@ -1,5 +1,31 @@
+from functools import lru_cache
+
 from fastapi import Header, HTTPException, status
+
+from governance.audit import AlertDispatcher, SignalEngine
+from orchestration.graph import create_supervisor_graph
 from orchestration.state import ZimSignalContext
+from tools.workspace import GoogleWorkspaceConnector
+
+
+@lru_cache
+def get_supervisor_app():
+    return create_supervisor_graph()
+
+
+@lru_cache
+def get_signal_engine() -> SignalEngine:
+    return SignalEngine()
+
+
+@lru_cache
+def get_alert_dispatcher() -> AlertDispatcher:
+    return AlertDispatcher()
+
+
+@lru_cache
+def get_workspace_connector() -> GoogleWorkspaceConnector:
+    return GoogleWorkspaceConnector()
 
 
 async def get_current_context(
