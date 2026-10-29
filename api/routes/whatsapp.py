@@ -21,7 +21,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from agents.supervisor import supervisor
-from api.schemas.context import ZimSignalContext  # or api.dependencies depending on where your context model lives
+from api.dependencies import ZimSignalContext  # or api.dependencies depending on where your context model lives
 
 log = logging.getLogger("zimsignal.whatsapp")
 router = APIRouter()
