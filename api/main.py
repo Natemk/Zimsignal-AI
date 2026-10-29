@@ -4,9 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.auth.routes import router as auth_router
+from api.routes import whatsapp
 from api.routes.chat import router as chat_router
 from api.routes.general import router as general_router
 from api.routes.workspace import router as workspace_router
+from api.routes.whatsapp import router as whatsapp_router
+
 
 app = FastAPI(
     title="ZimSignal AI Supervisor & Signal API",
@@ -29,3 +32,4 @@ app.include_router(general_router)
 app.include_router(chat_router)
 app.include_router(auth_router)
 app.include_router(workspace_router)
+app.include_router(whatsapp_router)
