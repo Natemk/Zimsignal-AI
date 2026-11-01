@@ -26,8 +26,12 @@ migrate to the new package paths.
 1. Copy `.env.example` to `.env` and set any external API keys you use.
 2. Install the pinned dependencies: `python -m pip install -e ".[dev]"`.
 3. Start PostgreSQL/pgvector and Redis: `docker compose up -d`.
-4. Start the API: `python -m uvicorn api.main:app --reload`.
-5. Open `http://localhost:8000/docs` for the API reference.
+4. Set `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL`, and the public
+	`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, and `VITE_AUTH0_AUDIENCE`
+	values in the project-root `.env` file.
+5. Run `npm run dev` to start the API and React app with the project virtual
+	environment. Open `http://localhost:5173` for chat or
+	`http://localhost:8000/docs` for the API reference.
 
 Run unit tests with `python -m pytest tests/unit`. Integration tests may need a
 running database and valid external service credentials.

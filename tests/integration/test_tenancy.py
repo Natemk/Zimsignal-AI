@@ -1,57 +1,63 @@
-import pytest
-from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.testclient import TestClient
-from api.dependencies import get_current_context
+from langchain_core.messages import AIMessage
+
+from api.dependencies import get_current_context, get_supervisor_app
+from api.main import app
 from orchestration.state import ZimSignalContext
 
-# Mock Database Store partitioned by organisation_id
-MOCK_DATABASE = {
-    "org_alpha": [
-        {"thread_id": "t100", "content": "Alpha confidential market data"}
-    ],
-    "org_beta": [
-        {"thread_id": "t200", "content": "Beta confidential farm records"}
-    ],
-}
 
-app = FastAPI()
+class RecordingSupervisor:
+    def __init__(self):
+        self.calls = []
+
+    async def ainvoke(self, state, config, context):
+        self.calls.append((config["configurable"]["thread_id"], context))
+        return {"messages": [AIMessage(content="test response")]}
 
 
-@app.get("/api/threads/{thread_id}")
-async def get_thread(
-    thread_id: str, ctx: ZimSignalContext = Depends(get_current_context)
-):
-    # Enforce database multi-tenant isolation
-    tenant_records = MOCK_DATABASE.get(ctx.organisation_id, [])
-    for record in tenant_records:
-        if record["thread_id"] == thread_id:
-            return record
+def test_chat_requires_authentication():
+    with TestClient(app) as client:
+        response = client.post("/chat", json={"message": "hello"})
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Thread not found or access denied.",
-    )
+    assert response.status_code == 401
 
 
-client = TestClient(app)
-
-
-def test_cross_tenant_isolation():
-    # User A (Org Alpha) requests User A's thread -> 200 OK
-    headers_user_a = {
-        "x-user-id": "user_a",
-        "x-organisation-id": "org_alpha",
-        "x-user-role": "admin",
+def test_chat_thread_is_scoped_to_authenticated_identity():
+    identities = {
+        "current": ZimSignalContext(
+            user_id="user_alpha",
+            organisation_id="org_alpha",
+            role="farmer",
+        )
     }
-    response_a = client.get("/api/threads/t100", headers=headers_user_a)
-    assert response_a.status_code == 200
-    assert response_a.json()["content"] == "Alpha confidential market data"
+    supervisor = RecordingSupervisor()
+    app.dependency_overrides[get_current_context] = lambda: identities["current"]
+    app.dependency_overrides[get_supervisor_app] = lambda: supervisor
 
-    # User B (Org Beta) attempts to request User A's thread -> 404/403 Access Denied
-    headers_user_b = {
-        "x-user-id": "user_b",
-        "x-organisation-id": "org_beta",
-        "x-user-role": "user",
-    }
-    response_b = client.get("/api/threads/t100", headers=headers_user_b)
-    assert response_b.status_code == 404
+    try:
+        with TestClient(app) as client:
+            first = client.post(
+                "/chat", json={"message": "hello", "thread_id": "same-id"}
+            )
+            identities["current"] = ZimSignalContext(
+                user_id="user_beta",
+                organisation_id="org_beta",
+                role="farmer",
+            )
+            second = client.post(
+                "/chat", json={"message": "hello", "thread_id": "same-id"}
+            )
+
+            spoofed = client.post(
+                "/chat",
+                json={"message": "hello", "user_id": "user_alpha"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["thread_id"] == second.json()["thread_id"] == "same-id"
+    assert supervisor.calls[0][0] == "org_alpha:user_alpha:same-id"
+    assert supervisor.calls[1][0] == "org_beta:user_beta:same-id"
+    assert spoofed.status_code == 422

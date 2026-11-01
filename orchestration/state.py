@@ -17,6 +17,8 @@ class ZimSignalContext:
     user_id: str
     organisation_id: str
     role: str
+    subscription: str = "free"
+    connected_services: tuple[str, ...] = ()
 
 
 class ZimSignalState(dict):

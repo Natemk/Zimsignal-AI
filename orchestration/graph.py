@@ -9,11 +9,11 @@ from agents.specialists.marketing import marketing_specialist_node
 from agents.specialists.research import research_specialist_node
 from agents.supervisor import supervisor_synthesizer_node
 from orchestration.router import supervisor_router_node
-from orchestration.state import AgentState
+from orchestration.state import AgentState, ZimSignalContext
 
 
 def create_supervisor_graph():
-    builder = StateGraph(AgentState)
+    builder = StateGraph(AgentState, context_schema=ZimSignalContext)
 
     builder.add_node("router", supervisor_router_node)
     builder.add_node("agriculture_specialist", agriculture_specialist_node)

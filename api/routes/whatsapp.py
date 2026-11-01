@@ -20,8 +20,7 @@ import time
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
-from agents.supervisor import supervisor
-from api.dependencies import ZimSignalContext  # or api.dependencies depending on where your context model lives
+from api.dependencies import ZimSignalContext, get_supervisor_app
 
 log = logging.getLogger("zimsignal.whatsapp")
 router = APIRouter()
@@ -250,7 +249,7 @@ async def process_message(msg: dict) -> None:
     ctx = ZimSignalContext(user_id=user_id, organisation_id=org_id, role="farmer",
                            subscription="free", connected_services=("whatsapp",))
     try:
-        result = await supervisor.ainvoke(
+        result = await get_supervisor_app().ainvoke(
             {"messages": [{"role": "user", "content": text}]},
             config={"configurable": {"thread_id": thread_id}},
             context=ctx,

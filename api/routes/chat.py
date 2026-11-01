@@ -1,47 +1,50 @@
 """Agent chat route."""
 
-from typing import Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from api.dependencies import get_signal_engine, get_supervisor_app
+from api.dependencies import get_current_context, get_signal_engine, get_supervisor_app
 from governance.audit import SignalEngine
+from orchestration.state import ZimSignalContext
 
 router = APIRouter()
 
 
 class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     message: str = Field(..., description="User prompt.")
-    thread_id: Optional[str] = Field(
-        "default_thread", description="Session thread ID for memory."
-    )
-    user_id: Optional[str] = Field(
-        "user_001", description="Associated user ID for long-term profile lookup."
+    thread_id: str | None = Field(
+        default=None, max_length=128, description="Client conversation identifier."
     )
 
 
 @router.post("/chat", tags=["Agent Interaction"])
 async def chat_endpoint(
     payload: ChatRequest,
+    context: ZimSignalContext = Depends(get_current_context),
     supervisor_app=Depends(get_supervisor_app),
     signal_engine: SignalEngine = Depends(get_signal_engine),
 ):
     try:
-        user_profile = signal_engine.approved_profiles.get(payload.user_id, {})
-        config = {"configurable": {"thread_id": payload.thread_id}}
-        contextual_prompt = (
-            f"[System Context - Approved User Profile: {user_profile}]\n"
-            f"User Query: {payload.message}"
+        client_thread_id = payload.thread_id or str(uuid4())
+        thread_id = (
+            f"{context.organisation_id}:{context.user_id}:{client_thread_id}"
         )
+        profile_key = f"{context.organisation_id}:{context.user_id}"
+        user_profile = signal_engine.approved_profiles.get(profile_key, {})
+        config = {"configurable": {"thread_id": thread_id}}
 
-        result = supervisor_app.invoke(
-            {"messages": [HumanMessage(content=contextual_prompt)]},
+        result = await supervisor_app.ainvoke(
+            {"messages": [HumanMessage(content=payload.message)]},
             config=config,
+            context=context,
         )
         return {
-            "thread_id": payload.thread_id,
+            "thread_id": client_thread_id,
             "response": result["messages"][-1].content,
             "active_profile": user_profile,
         }
